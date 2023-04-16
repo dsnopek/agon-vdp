@@ -41,7 +41,7 @@
 #define RC				4
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
-#define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
+#define SERIALKB		1						// Serial Keyboard: 1 = enable (Experimental)
 
 fabgl::PS2Controller		PS2Controller;		// The keyboard class
 fabgl::Canvas *				Canvas;				// The canvas class
@@ -57,7 +57,8 @@ fabgl::VGABaseController *	VGAController;		// Pointer to the current VGA control
 
 fabgl::Terminal				Terminal;			// Used for CP/M mode
 
-#include "agon.h"								// Configuration file
+#include "agon.h"
+#include "ihexload.h"								// Configuration file
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
 #include "agon_audio.h"							// The Audio class
 #include "agon_palette.h"						// Colour lookup table
@@ -94,14 +95,14 @@ audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 ESP32Time	rtc(0);								// The RTC
 
 #if DEBUG == 1 || SERIALKB == 1
-HardwareSerial DBGSerial(0);
+
 #endif 
 
 void setup() {
 	disableCore0WDT(); delay(200);								// Disable the watchdog timers
 	disableCore1WDT(); delay(200);
 	#if DEBUG == 1 || SERIALKB == 1
-	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
+	Serial.begin(115200, SERIAL_8N1, 3, 1);
 	#endif 
 	ESPSerial.end();
  	ESPSerial.setRxBufferSize(UART_RX_SIZE);					// Can't be called when running
@@ -167,7 +168,7 @@ void loop() {
 // The boot screen
 //
 void boot_screen() {
-  	printFmt("Agon Quark VDP Version %d.%02d", VERSION, REVISION);
+  	printFmt("Agon Quark VDP Version %d.%02d Hexload patch", VERSION, REVISION);
 	#if RC > 0
 	  	printFmt(" RC%d", RC);
 	#endif
@@ -186,7 +187,7 @@ void debug_log(const char *format, ...) {
      	va_start(ap, format);
      	char buf[size + 1];
      	vsnprintf(buf, size, format, ap);
-     	DBGSerial.print(buf);
+     	Serial.print(buf);
    	}
    	va_end(ap);
 	#endif
@@ -746,9 +747,9 @@ void do_keyboard() {
 	fabgl::VirtualKeyItem item;
 
 	#if SERIALKB == 1
-	if(DBGSerial.available()) {
+	if(Serial.available()) {
 		byte packet[] = {
-			DBGSerial.read(),
+			Serial.read(),
 			0,
 		};
 		send_packet(PACKET_KEYCODE, sizeof packet, packet);
@@ -1160,6 +1161,9 @@ void vdu_sys() {
 			}	break;
 			case 0x1B: {					// VDU 23, 27
 				vdu_sys_sprites();			// Sprite system control
+				break;
+			case 0x1C:						// HEXLOAD VDU 23,28
+				vdu_sys_hexload();
 			}	break;
   		}
 	}
